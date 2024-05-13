@@ -1,65 +1,200 @@
 const express = require('express');
-const cors = require('cors');
+const bodyParser = require('body-parser');
+
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+const PORT = 3000;
 
-app.listen(3000, () => {
-  console.log('Listening on port 3000!');
-});
+// Middleware
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
 
-app.get('/', (req, res) => {
-  const {param1} = req.query;
+// Mock database to store users and verification codes
+let users = [];
+let verificationCodes = {};
 
-  res.send('Hello World!<br>Param1 = ' + param1);
-});
-
-let nexPersonId = 3;
-const people = [
-  {id: 1, name: 'John', surname: 'Doe'},
-  {id: 2, name: 'Anna', surname: 'Dopey'},
+// Predefined list of allergies
+const allergiesList = [
+    'Peanuts', 
+    'Shellfish', 
+    'Gluten', 
+    'Lactose', 
+    'Soy', 
+    'Eggs', 
+    'Fish', 
+    'Tree nuts',
+    'Milk',
+    'Wheat',
+    'Sesame seeds',
+    'Sulfites',
+    'Mustard',
+    'Corn',
+    'Red meat',
+    'Caffeine',
+    'Alcohol',
+    'Latex',
+    'Nickel',
+    'Pollen',
+    'Dust mites',
+    'Pet dander',
+    'Mold',
+    'Insect stings',
+    'Medication (Penicillin)',
+    'Medication (Aspirin)',
+    'Medication (Ibuprofen)',
+    'Medication (Sulfa drugs)',
+    'Medication (Chemotherapy)',
+    'Medication (Insulin)',
+    'Medication (Codeine)',
+    'Medication (Local anesthetics)'
 ];
 
-app.get('/people', (req, res) => {
-  res.send(people);
+// Route to add a user
+app.post('/addUser', (req, res) => {
+    const { name, email, phone, allergies } = req.body;
+    
+    if (!name || !email || !phone) {
+        return res.status(400).json({ error: 'Please provide name, email, and phone number' });
+    }
+    
+    const newUser = {
+        id: users.length + 1,
+        name,
+        email,
+        phone,
+        allergies: allergies || []
+    };
+    
+    users.push(newUser);
+    
+    res.status(201).json(newUser);
 });
 
-app.get('/people/:id', (req, res) => {
-  const personId = +req.params.id;
-
-  const person = people.find(person => person.id === personId);
-
-  if(!person) {
-    res.sendStatus(404);
-    return;
-  }
-
-  res.send(person);
+// Route to update user email
+app.put('/updateUserEmail/:id', (req, res) => {
+    const { id } = req.params;
+    const { email } = req.body;
+    
+    const user = users.find(user => user.id === parseInt(id));
+    
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const verificationCode = generateVerificationCode();
+    verificationCodes[id] = { code: verificationCode, type: 'email' };
+    console.log("TZ", verificationCodes)
+    
+    // Simulate sending verification code back to the user
+    return res.json({ verificationCode });
 });
 
-app.post('/people', (req, res) => {
-  if(!req.body){
-    res.status(400).json({ error: 'Body not specified' });
-    return;
+// Route to update user phone
+app.put('/updateUserPhone/:id', (req, res) => {
+    const { id } = req.params;
+    const { phone } = req.body;
+    
+    const user = users.find(user => user.id === parseInt(id));
+    
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const verificationCode = generateVerificationCode();
+    verificationCodes[id] = { code: verificationCode, type: 'phone' };
+    
+    // Simulate sending verification code back to the user
+    return res.json({ verificationCode });
+});
+
+// Route to verify the code and update user email
+app.put('/verifyAndUpdateEmail/:id', (req, res) => {
+    const { id } = req.params;
+    const { email, verificationCode } = req.body;
+    
+    const user = users.find(user => user.id === parseInt(id));
+    
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const storedVerificationCode = verificationCodes[id];
+    console.log("WHAT WE HAVE",storedVerificationCode, storedVerificationCode.code, storedVerificationCode.type, verificationCode)
+    if (!storedVerificationCode || storedVerificationCode.code != verificationCode || storedVerificationCode.type != 'email') {
+        return res.status(403).json({ error: 'Invalid verification code' });
+    }
+    
+    // Clear the verification code
+    delete verificationCodes[id];
+    
+    user.email = email;
+    res.json(user);
+});
+
+// Route to verify the code and update user phone
+app.put('/verifyAndUpdatePhone/:id', (req, res) => {
+    const { id } = req.params;
+    const { phone, verificationCode } = req.body;
+    
+    const user = users.find(user => user.id === parseInt(id));
+    
+    if (!user) {
+        return res.status(404).json({ error: 'User not found' });
+    }
+    
+    const storedVerificationCode = verificationCodes[id];
+    if (!storedVerificationCode || storedVerificationCode.code != verificationCode || storedVerificationCode.type != 'phone') {
+        return res.status(403).json({ error: 'Invalid verification code' });
+    }
+    
+    // Clear the verification code
+    delete verificationCodes[id];
+    
+    user.phone = phone;
+    res.json(user);
+});
+
+// Route to get all users
+app.get('/users', (req, res) => {
+    res.json(users);
+});
+
+app.put('/updateUserAllergies/:id', (req, res) => {
+  const userId = req.params.id;
+  const { allergies } = req.body;
+
+  // Find the user by ID
+  const user = users.find(user => user.id === parseInt(userId));
+
+  if (!user) {
+      return res.status(404).json({ message: 'User not found' });
   }
 
-  if(!req.body.name){
-    res.status(400).json({ error: 'No name specified' });
-    return;
-  }
+  // Update user allergies
+  user.allergies = allergies;
 
-  if(!req.body.surname){
-    res.status(400).json({ error: 'No surname specified' });
-    return;
-  }
+  res.json({ message: 'User allergies updated successfully', user });
+});
 
-  const newPerson = {
-    ...req.body,
-    id: nexPersonId++
-  };
+// Route to get list of allergies
+app.get('/allergies', (req, res) => {
+    const { search } = req.query;
+    if (search) {
+        const filteredAllergies = allergiesList.filter(allergy =>
+            allergy.toLowerCase().includes(search.toLowerCase())
+        );
+        res.json(filteredAllergies);
+    } else {
+        res.json(allergiesList);
+    }
+});
 
-  people.push(newPerson);
+// Helper function to generate random 6-digit code
+function generateVerificationCode() {
+    return Math.floor(100000 + Math.random() * 900000);
+}
 
-  res.send(newPerson);
+// Start server
+app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
 });
