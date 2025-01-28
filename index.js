@@ -1,13 +1,16 @@
 const express = require('express');
 const bodyParser = require('body-parser');
+const cors = require('cors');
 
 
 const app = express();
-const PORT = 3000;
+const PORT = 5175;
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+app.use(cors());
+
 
 // Mock database to store users and verification codes
 let users = [];
