@@ -4,7 +4,7 @@ const cors = require('cors');
 
 
 const app = express();
-const PORT = 5175;
+const PORT = 5173;
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: false }));
